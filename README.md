@@ -134,14 +134,7 @@ uvicorn api.main:app --reload
 3. Set **Main file path** to `app/streamlit_app.py`.
 4. Deploy. First boot may take a minute while spaCy's model wheel installs.
 
-## Known limitations
 
-- Machine translation (Hindi/Kannada → English) depends on an external
-  translation service; if that service is unreachable, input falls back to
-  being processed as-is.
-- The underlying dataset is small and synthetic — real clinical text is
-  messier, and a production system would need a much larger, more diverse,
-  and clinically validated dataset plus proper cross-validation.
 - Symptom extraction is alias/keyword-based, not a medical NLP model — it
   won't catch every possible phrasing.
 
