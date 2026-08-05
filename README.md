@@ -71,6 +71,31 @@ train/test split. That's noted here deliberately, since being able to
 explain *why* a result looks unrealistically perfect is exactly what an
 interviewer will probe for.
 
+
+### Symptom Checker Interface
+
+User can enter symptoms in English, Hindi, or Kannada. The system detects the language, extracts symptoms, and processes the input to predict possible conditions.
+
+![MediCheck Home Screen](https://github.com/saniasagheer05/Medicheck/blob/fb5355253ffda493b07ef82cc07c21e2ec2c4a30/Screenshot%20(233).png)
+
+### Disease Prediction & Confidence Analysis
+
+Displays predicted conditions with confidence scores and a visual comparison chart for better understanding.
+
+![Prediction Results](https://github.com/saniasagheer05/Medicheck/blob/fb5355253ffda493b07ef82cc07c21e2ec2c4a30/Screenshot%20(236).png)
+
+### Severity Assessment & Specialist Recommendation
+
+Provides risk classification (Mild / Moderate / Urgent), detected symptoms, and recommended medical specialists.
+
+![Severity and Specialist Recommendation](https://github.com/saniasagheer05/Medicheck/blob/fb5355253ffda493b07ef82cc07c21e2ec2c4a30/Screenshot%20(237).png)
+
+### Model Comparison Visualization
+
+The system compares multiple machine learning classifiers and automatically selects the best-performing model for deployment. The comparison includes accuracy evaluation across Random Forest, Naive Bayes, and Support Vector Machine (SVM).
+
+![PDF Report](https://github.com/saniasagheer05/Medicheck/blob/fb5355253ffda493b07ef82cc07c21e2ec2c4a30/Screenshot%20(238).png)
+
 ## Project structure
 
 ```
