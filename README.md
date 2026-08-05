@@ -4,10 +4,6 @@ An AI-powered symptom checker that takes a free-text description of symptoms
 (English, Hindi, or Kannada) and returns likely conditions, a severity/risk
 assessment, recommended specialists, and a downloadable PDF report.
 
-> ⚠️ **Disclaimer:** MediCheck is an educational project, not a medical
-> device. Predictions are not a diagnosis. Always consult a qualified
-> healthcare professional. If this is a medical emergency, contact local
-> emergency services immediately.
 
 ## Features
 
