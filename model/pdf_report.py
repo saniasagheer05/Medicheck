@@ -1,6 +1,11 @@
-from fpdf import FPDF
-from datetime import datetime
 import os
+from datetime import datetime
+
+from fpdf import FPDF
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+
 
 class MediCheckReport(FPDF):
     def header(self):
@@ -29,7 +34,6 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # ── Patient context ───────────────────────────────────────
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(50, 50, 50)
     pdf.cell(0, 8, "Patient Context", new_x="LMARGIN", new_y="NEXT")
@@ -39,7 +43,6 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
              new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
 
-    # ── Symptoms detected ─────────────────────────────────────
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(50, 50, 50)
     pdf.cell(0, 8, "Symptoms Detected", new_x="LMARGIN", new_y="NEXT")
@@ -49,12 +52,12 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
     pdf.multi_cell(0, 7, symptom_text)
     pdf.ln(3)
 
-    # ── Severity ──────────────────────────────────────────────
     severity = predictions[0]["severity"]
+    risk_flag = predictions[0].get("risk_flag", False)
     severity_colors = {
         "Urgent": (220, 53, 69),
         "Moderate": (255, 165, 0),
-        "Mild": (30, 158, 117)
+        "Mild": (30, 158, 117),
     }
     r, g, b = severity_colors.get(severity, (80, 80, 80))
     pdf.set_font("Helvetica", "B", 11)
@@ -62,27 +65,29 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
     pdf.cell(40, 8, "Severity Level:")
     pdf.set_text_color(r, g, b)
     pdf.cell(0, 8, f"  {severity}", new_x="LMARGIN", new_y="NEXT")
+
+    if risk_flag:
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_text_color(220, 53, 69)
+        pdf.multi_cell(0, 6, "! One or more reported symptoms are commonly associated with medical "
+                             "emergencies. Please seek immediate medical attention.")
     pdf.ln(3)
 
-    # ── Top 3 predictions ─────────────────────────────────────
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(50, 50, 50)
-    pdf.cell(0, 8, "Top 3 Possible Conditions", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, "Top Possible Conditions", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
 
     for i, pred in enumerate(predictions):
-        # Disease name + confidence
         pdf.set_font("Helvetica", "B", 10)
         pdf.set_text_color(30, 158, 117)
         pdf.cell(0, 7, f"{i+1}. {pred['disease']}  ({pred['confidence']}% confidence)",
                  new_x="LMARGIN", new_y="NEXT")
 
-        # Description
         pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(80, 80, 80)
         pdf.multi_cell(0, 6, pred["description"])
 
-        # Precautions
         if pred["precautions"]:
             pdf.set_font("Helvetica", "B", 9)
             pdf.set_text_color(60, 60, 60)
@@ -90,9 +95,8 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
             pdf.set_font("Helvetica", "", 9)
             pdf.set_text_color(80, 80, 80)
             for p in pred["precautions"]:
-                pdf.cell(0, 6, f"  • {p}", new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(0, 6, f"  - {p}", new_x="LMARGIN", new_y="NEXT")
 
-        # Specialist
         pdf.set_font("Helvetica", "B", 9)
         pdf.set_text_color(60, 60, 60)
         pdf.cell(40, 6, "Recommended specialist:")
@@ -101,7 +105,6 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
         pdf.cell(0, 6, f"  {pred['specialist']}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
 
-    # ── Disclaimer ────────────────────────────────────────────
     pdf.set_draw_color(200, 200, 200)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
@@ -111,8 +114,7 @@ def generate_pdf(symptoms, predictions, age_group, gender, duration):
                          "It is not a medical diagnosis. Please consult a qualified healthcare "
                          "professional for proper evaluation and treatment.")
 
-    # Save to file
-    os.makedirs("outputs", exist_ok=True)
-    path = f"outputs/medicheck_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    path = os.path.join(OUTPUT_DIR, f"medicheck_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
     pdf.output(path)
     return path

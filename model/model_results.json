@@ -1,0 +1,8 @@
+{
+  "results": {
+    "Random Forest": 100.0,
+    "Naive Bayes": 100.0,
+    "SVM": 100.0
+  },
+  "best_model": "Random Forest"
+}

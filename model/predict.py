@@ -1,21 +1,55 @@
+import os
+import sys
+
 import joblib
 import numpy as np
 import pandas as pd
-import json
 
-model = joblib.load("model/medicheck_model.pkl")
-le = joblib.load("model/label_encoder.pkl")
-symptom_list = joblib.load("model/symptom_list.pkl")
+sys.path.insert(0, os.path.dirname(__file__))
+from utils import normalize_symptom, to_display, NON_SYMPTOM_ROWS  # noqa: E402
 
-desc_df = pd.read_csv("data/symptom_Description.csv")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_DIR = os.path.join(BASE_DIR, "model")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+
+model = joblib.load(os.path.join(MODEL_DIR, "medicheck_model.pkl"))
+le = joblib.load(os.path.join(MODEL_DIR, "label_encoder.pkl"))
+symptom_list = joblib.load(os.path.join(MODEL_DIR, "symptom_list.pkl"))
+
+desc_df = pd.read_csv(os.path.join(DATA_DIR, "symptom_Description.csv"))
 desc_df.columns = desc_df.columns.str.strip()
 
-precaution_df = pd.read_csv("data/symptom_precaution.csv")
+precaution_df = pd.read_csv(os.path.join(DATA_DIR, "symptom_precaution.csv"))
 precaution_df.columns = precaution_df.columns.str.strip()
 
-severity_df = pd.read_csv("data/Symptom-severity.csv")
+severity_df = pd.read_csv(os.path.join(DATA_DIR, "Symptom-severity.csv"))
 severity_df.columns = severity_df.columns.str.strip()
-severity_df["Symptom"] = severity_df["Symptom"].str.strip().str.lower().str.replace(" ", "_")
+# FIX: previously this only stripped/lowercased and swapped spaces for
+# underscores, but symptom_list.pkl was itself space-separated at the
+# time (e.g. "skin rash"), so "skin rash" == "skin_rash" never matched
+# and get_severity() silently returned "Mild" for every case. Both
+# sides now go through the same normalize_symptom() used to build
+# symptom_list.pkl in train.py, so they always agree.
+severity_df["Symptom"] = severity_df["Symptom"].apply(normalize_symptom)
+severity_df = severity_df[~severity_df["Symptom"].isin(NON_SYMPTOM_ROWS)]
+SEVERITY_WEIGHTS = dict(zip(severity_df["Symptom"], severity_df["weight"]))
+
+# Symptoms commonly associated with medical emergencies. Presence of any
+# of these raises a hard risk flag regardless of the averaged severity
+# score, since a single serious symptom shouldn't get diluted by several
+# mild ones in an average.
+HIGH_RISK_SYMPTOMS = {
+    "chest_pain",
+    "breathlessness",
+    "coma",
+    "altered_sensorium",
+    "blood_in_sputum",
+    "fluid_overload",
+    "distention_of_abdomen",
+    "unsteadiness",
+    "slurred_speech",
+    "loss_of_balance",
+}
 
 SPECIALIST_MAP = {
     "fungal infection": "Dermatologist",
@@ -61,50 +95,57 @@ SPECIALIST_MAP = {
     "impetigo": "Dermatologist",
 }
 
-def get_severity(symptoms):
-    total = 0
-    for s in symptoms:
-        match = severity_df[severity_df["Symptom"] == s]
-        if not match.empty:
-            total += int(match["weight"].values[0])
-    avg = total / len(symptoms) if symptoms else 0
-    if avg >= 4:
-        return "Urgent", "red"
-    elif avg >= 2:
-        return "Moderate", "orange"
-    else:
-        return "Mild", "green"
 
-def predict_disease(symptoms):
+def get_severity(symptoms):
+    """Returns (label, color, risk_flag). symptoms must already be in
+    canonical normalize_symptom() form.
+    """
+    symptoms = [normalize_symptom(s) for s in symptoms]
+    total = sum(SEVERITY_WEIGHTS.get(s, 0) for s in symptoms)
+    avg = total / len(symptoms) if symptoms else 0
+    risk_flag = any(s in HIGH_RISK_SYMPTOMS for s in symptoms)
+
+    if risk_flag or avg >= 4:
+        return "Urgent", "red", risk_flag
+    elif avg >= 2:
+        return "Moderate", "orange", risk_flag
+    else:
+        return "Mild", "green", risk_flag
+
+
+def predict_disease(symptoms, top_n=3):
     if not symptoms:
         return None
 
-    # Build input vector
-    input_vector = [1 if s in symptoms else 0 for s in symptom_list]
-    input_array = np.array(input_vector).reshape(1, -1)
+    symptoms = [normalize_symptom(s) for s in symptoms]
 
-    # Get top 3 predictions with confidence
-    proba = model.predict_proba(input_array)[0]
-    top3_indices = np.argsort(proba)[::-1][:3]
+    input_vector = [1 if s in symptoms else 0 for s in symptom_list]
+    input_df = pd.DataFrame([input_vector], columns=symptom_list)
+
+    proba = model.predict_proba(input_df)[0]
+    top_indices = np.argsort(proba)[::-1][:top_n]
+
+    severity, severity_color, risk_flag = get_severity(symptoms)
 
     predictions = []
-    for idx in top3_indices:
+    for idx in top_indices:
         disease = le.classes_[idx]
         confidence = round(proba[idx] * 100, 1)
 
-        # Get description
         desc_match = desc_df[desc_df["Disease"].str.strip().str.lower() == disease.lower()]
         description = desc_match["Description"].values[0] if not desc_match.empty else "No description available."
 
-        # Get precautions
         prec_match = precaution_df[precaution_df["Disease"].str.strip().str.lower() == disease.lower()]
         if not prec_match.empty:
-            precautions = [prec_match.iloc[0][f"Precaution_{i}"] for i in range(1, 5) if pd.notna(prec_match.iloc[0][f"Precaution_{i}"])]
+            precautions = [
+                prec_match.iloc[0][f"Precaution_{i}"]
+                for i in range(1, 5)
+                if pd.notna(prec_match.iloc[0][f"Precaution_{i}"])
+            ]
         else:
             precautions = []
 
         specialist = SPECIALIST_MAP.get(disease.lower(), "General Physician")
-        severity, severity_color = get_severity(symptoms)
 
         predictions.append({
             "disease": disease.title(),
@@ -113,7 +154,14 @@ def predict_disease(symptoms):
             "precautions": precautions,
             "specialist": specialist,
             "severity": severity,
-            "severity_color": severity_color
+            "severity_color": severity_color,
+            "risk_flag": risk_flag,
         })
 
     return predictions
+
+
+def matched_symptoms_display(symptoms):
+    """Human-readable version of the canonical symptoms, for showing the
+    user what was actually understood from their input."""
+    return [to_display(normalize_symptom(s)) for s in symptoms]
