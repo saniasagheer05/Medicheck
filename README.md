@@ -49,6 +49,10 @@ share a single symptom-normalization function in `model/utils.py`, so the
 feature format used for training always matches the format used at
 prediction time. See [CHANGELOG.md](CHANGELOG.md) for why this mattered.
 
+![Training Pipeline](https://github.com/saniasagheer05/Medicheck/blob/bbbfc5a348192a01bb01b71c242a6cdc575a2b2f/medicheck_training_pipeline.png)
+
+![Prediction Results](https://github.com/saniasagheer05/Medicheck/blob/bbbfc5a348192a01bb01b71c242a6cdc575a2b2f/medicheck_inference_pipeline.png)
+
 ## Model
 
 Trained on a public Kaggle disease–symptom dataset (4,920 rows, 41 diseases,
