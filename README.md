@@ -51,7 +51,7 @@ prediction time. See [CHANGELOG.md](CHANGELOG.md) for why this mattered.
 
 ![Training Pipeline](https://github.com/saniasagheer05/Medicheck/blob/bbbfc5a348192a01bb01b71c242a6cdc575a2b2f/medicheck_training_pipeline.png)
 
-![Prediction Results](https://github.com/saniasagheer05/Medicheck/blob/bbbfc5a348192a01bb01b71c242a6cdc575a2b2f/medicheck_inference_pipeline.png)
+![Inference Pipeline](https://github.com/saniasagheer05/Medicheck/blob/bbbfc5a348192a01bb01b71c242a6cdc575a2b2f/medicheck_inference_pipeline.png)
 
 ## Model
 
