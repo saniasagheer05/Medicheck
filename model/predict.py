@@ -1,28 +1,29 @@
-import os
 import sys
+from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from utils import normalize_symptom, to_display, NON_SYMPTOM_ROWS  # noqa: E402
+from symptom_match import rank_by_symptom_match  # noqa: E402
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_DIR = os.path.join(BASE_DIR, "model")
-DATA_DIR = os.path.join(BASE_DIR, "data")
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_DIR = BASE_DIR / "model"
+DATA_DIR = BASE_DIR / "data"
 
-model = joblib.load(os.path.join(MODEL_DIR, "medicheck_model.pkl"))
-le = joblib.load(os.path.join(MODEL_DIR, "label_encoder.pkl"))
-symptom_list = joblib.load(os.path.join(MODEL_DIR, "symptom_list.pkl"))
+model = joblib.load(MODEL_DIR / "medicheck_model.pkl")
+le = joblib.load(MODEL_DIR / "label_encoder.pkl")
+symptom_list = joblib.load(MODEL_DIR / "symptom_list.pkl")
 
-desc_df = pd.read_csv(os.path.join(DATA_DIR, "symptom_Description.csv"))
+desc_df = pd.read_csv(DATA_DIR / "symptom_Description.csv")
 desc_df.columns = desc_df.columns.str.strip()
 
-precaution_df = pd.read_csv(os.path.join(DATA_DIR, "symptom_precaution.csv"))
+precaution_df = pd.read_csv(DATA_DIR / "symptom_precaution.csv")
 precaution_df.columns = precaution_df.columns.str.strip()
 
-severity_df = pd.read_csv(os.path.join(DATA_DIR, "Symptom-severity.csv"))
+severity_df = pd.read_csv(DATA_DIR / "Symptom-severity.csv")
 severity_df.columns = severity_df.columns.str.strip()
 # FIX: previously this only stripped/lowercased and swapped spaces for
 # underscores, but symptom_list.pkl was itself space-separated at the
@@ -119,18 +120,19 @@ def predict_disease(symptoms, top_n=3):
 
     symptoms = [normalize_symptom(s) for s in symptoms]
 
-    input_vector = [1 if s in symptoms else 0 for s in symptom_list]
-    input_df = pd.DataFrame([input_vector], columns=symptom_list)
-
-    proba = model.predict_proba(input_df)[0]
-    top_indices = np.argsort(proba)[::-1][:top_n]
+    # Rank by dataset symptom evidence instead of model.predict_proba: the
+    # classifier was trained on full symptom profiles, so sparse user input
+    # (unmentioned symptoms encoded as 0) is out-of-distribution for it.
+    ranked = rank_by_symptom_match(symptoms, top_n=top_n)
+    if not ranked:
+        return None
 
     severity, severity_color, risk_flag = get_severity(symptoms)
 
     predictions = []
-    for idx in top_indices:
-        disease = le.classes_[idx]
-        confidence = round(proba[idx] * 100, 1)
+    for item in ranked:
+        disease = item["disease"]
+        confidence = item["match_score"]  # key kept for UI/PDF; it is a symptom-match score
 
         desc_match = desc_df[desc_df["Disease"].str.strip().str.lower() == disease.lower()]
         description = desc_match["Description"].values[0] if not desc_match.empty else "No description available."
@@ -150,6 +152,8 @@ def predict_disease(symptoms, top_n=3):
         predictions.append({
             "disease": disease.title(),
             "confidence": confidence,
+            "full_match_rows": item["full_match_rows"],
+            "total_rows": item["total_rows"],
             "description": description,
             "precautions": precautions,
             "specialist": specialist,

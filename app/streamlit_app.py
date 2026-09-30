@@ -1,20 +1,20 @@
 import json
-import os
 import sqlite3
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, BASE_DIR)
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
 
 from model.symptom_extractor import extract_symptoms  # noqa: E402
 from model.predict import predict_disease  # noqa: E402
 
-DB_PATH = os.path.join(BASE_DIR, "data", "queries.db")
-RESULTS_PATH = os.path.join(BASE_DIR, "model", "model_results.json")
+DB_PATH = BASE_DIR / "data" / "queries.db"
+RESULTS_PATH = BASE_DIR / "model" / "model_results.json"
 
 st.set_page_config(page_title="MediCheck", page_icon="🩺", layout="centered")
 
@@ -128,11 +128,11 @@ if user_input:
             response += f"**Severity:** {SEVERITY_BADGE.get(top['severity'], '🟢')} {top['severity']}\n\n"
             if top.get("risk_flag"):
                 response += "🚨 **One or more symptoms are commonly associated with medical emergencies. Please seek immediate medical attention.**\n\n"
-            response += "---\n### Top Possible Conditions\n\n"
+            response += "---\n### Possible Conditions (based on your symptoms)\n\n"
 
             for i, pred in enumerate(predictions):
                 bar = "█" * int(pred["confidence"] / 10) + "░" * (10 - int(pred["confidence"] / 10))
-                response += f"**{i+1}. {pred['disease']}** — {pred['confidence']}%\n"
+                response += f"**{i+1}. {pred['disease']}** — Symptom Match {pred['confidence']}%\n"
                 response += f"`{bar}`\n\n"
                 response += f"{pred['description']}\n\n"
                 if pred["precautions"]:
@@ -141,6 +141,11 @@ if user_input:
                 if i < len(predictions) - 1:
                     response += "---\n"
 
+            response += (
+                "\n---\n*Possible conditions based on the symptoms you entered. "
+                "Symptom Match % shows how well the entered symptoms fit the reference dataset. "
+                "It is not a probability and not a diagnosis.*\n"
+            )
             followup = get_followup(symptoms)
             if followup:
                 response += f"\n---\n💬 **Follow-up:** {followup}"
@@ -152,7 +157,7 @@ if user_input:
                 # Confidence chart (high-value add: visual comparison of
                 # the top candidate conditions instead of just text/%).
                 chart_df = pd.DataFrame(
-                    {"Condition": [p["disease"] for p in predictions], "Confidence %": [p["confidence"] for p in predictions]}
+                    {"Condition": [p["disease"] for p in predictions], "Symptom Match %": [p["confidence"] for p in predictions]}
                 ).set_index("Condition")
                 st.bar_chart(chart_df)
 
